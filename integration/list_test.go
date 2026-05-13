@@ -47,7 +47,7 @@ func TestListObjectsDeniedOutsidePrefix(t *testing.T) {
 	}
 }
 
-func TestListObjectsDeniedNoListVerb(t *testing.T) {
+func TestListObjectsDeniedRootBucketListing(t *testing.T) {
 	client := proxyClient("user1key", "user1secret")
 	_, err := client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
 		Bucket: aws.String(testBucket),

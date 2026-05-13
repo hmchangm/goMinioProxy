@@ -45,7 +45,7 @@ func TestGetObjectDeniedWrongPrefix(t *testing.T) {
 	}
 }
 
-func TestGetObjectDeniedWrongVerb(t *testing.T) {
+func TestDeleteDeniedForReadOnlyUser(t *testing.T) {
 	mustPutDirect(t, "photos/to-delete.jpg", "data")
 
 	client := proxyClient("user2key", "user2secret")
