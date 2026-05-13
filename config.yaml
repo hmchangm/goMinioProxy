@@ -15,14 +15,14 @@ users:
     rules:
       - prefix: "public/"
         verbs:
-          - Get
-          - List
+          - get
+          - list
   - access_key: "user2"
     secret_key: "secret2"
     rules:
       - prefix: ""
         verbs:
-          - Get
-          - Put
-          - Delete
-          - List
+          - get
+          - put
+          - delete
+          - list

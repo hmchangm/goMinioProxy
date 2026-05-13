@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -51,6 +52,13 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.MinIO.Endpoint == "" {
 		return nil, fmt.Errorf("minio.endpoint is required")
+	}
+	for i := range cfg.Users {
+		for j := range cfg.Users[i].Rules {
+			for k, v := range cfg.Users[i].Rules[j].Verbs {
+				cfg.Users[i].Rules[j].Verbs[k] = strings.ToLower(v)
+			}
+		}
 	}
 	return &cfg, nil
 }

@@ -2,6 +2,7 @@
 package proxy
 
 import (
+	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
@@ -45,7 +46,9 @@ func New(cfg *config.Config) *Proxy {
 		cfg:        cfg,
 		userMap:    userMap,
 		minioBase:  scheme + "://" + cfg.MinIO.Endpoint,
-		httpClient: &http.Client{},
+		httpClient: &http.Client{
+			Timeout: 60 * time.Second,
+		},
 		signer:     v4.NewSigner(),
 	}
 }
@@ -170,5 +173,13 @@ func (p *Proxy) forward(w http.ResponseWriter, r *http.Request) {
 func writeS3Error(w http.ResponseWriter, code, message string, status int) {
 	w.Header().Set("Content-Type", "application/xml")
 	w.WriteHeader(status)
-	fmt.Fprintf(w, `<?xml version="1.0" encoding="UTF-8"?><Error><Code>%s</Code><Message>%s</Message><RequestId>1</RequestId></Error>`, code, message)
+	type xmlError struct {
+		XMLName   struct{} `xml:"Error"`
+		Code      string   `xml:"Code"`
+		Message   string   `xml:"Message"`
+		RequestID string   `xml:"RequestId"`
+	}
+	w.Write([]byte(xml.Header)) //nolint:errcheck
+	enc := xml.NewEncoder(w)
+	enc.Encode(xmlError{Code: code, Message: message, RequestID: "1"}) //nolint:errcheck
 }
