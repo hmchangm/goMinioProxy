@@ -71,8 +71,8 @@ func TestMain(m *testing.M) {
 		fmt.Fprintf(os.Stderr, "minio endpoint: %v\n", err)
 		os.Exit(1)
 	}
-	// ConnectionString returns "http://host:port"
-	minioHost := strings.TrimPrefix(minioEndpoint, "http://")
+	// ConnectionString returns "host:port" (no scheme)
+	minioHost := minioEndpoint
 
 	proxyConfig.MinIO.Endpoint = minioHost
 	proxyConfig.MinIO.AccessKey = "minioadmin"
@@ -80,7 +80,7 @@ func TestMain(m *testing.M) {
 	proxyConfig.MinIO.UseSSL = false
 
 	// Create test bucket directly in MinIO
-	adminS3 = newS3Client(minioEndpoint, "minioadmin", "minioadmin")
+	adminS3 = newS3Client("http://"+minioEndpoint, "minioadmin", "minioadmin")
 	if _, err := adminS3.CreateBucket(ctx, &s3.CreateBucketInput{
 		Bucket: aws.String(testBucket),
 	}); err != nil {
