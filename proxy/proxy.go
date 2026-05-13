@@ -16,6 +16,12 @@ import (
 	"gominioproxy/config"
 )
 
+var skipForwardHeaders = map[string]bool{
+	"Authorization":         true,
+	"X-Amz-Date":           true,
+	"X-Amz-Security-Token": true,
+}
+
 // Proxy implements http.Handler. It validates SigV4, enforces ACL, re-signs, and streams.
 type Proxy struct {
 	cfg        *config.Config
@@ -121,13 +127,8 @@ func (p *Proxy) forward(w http.ResponseWriter, r *http.Request) {
 	}
 	outReq.ContentLength = r.ContentLength
 
-	skipHeaders := map[string]bool{
-		"Authorization":         true,
-		"X-Amz-Date":           true,
-		"X-Amz-Security-Token": true,
-	}
 	for k, vs := range r.Header {
-		if !skipHeaders[k] {
+		if !skipForwardHeaders[k] {
 			outReq.Header[k] = vs
 		}
 	}
@@ -141,7 +142,11 @@ func (p *Proxy) forward(w http.ResponseWriter, r *http.Request) {
 		AccessKeyID:     p.cfg.MinIO.AccessKey,
 		SecretAccessKey: p.cfg.MinIO.SecretKey,
 	}
-	if err := p.signer.SignHTTP(r.Context(), creds, outReq, payloadHash, "s3", "us-east-1", time.Now()); err != nil {
+	region := p.cfg.MinIO.Region
+	if region == "" {
+		region = "us-east-1"
+	}
+	if err := p.signer.SignHTTP(r.Context(), creds, outReq, payloadHash, "s3", region, time.Now()); err != nil {
 		writeS3Error(w, "InternalError", "failed to sign upstream request", http.StatusInternalServerError)
 		return
 	}

@@ -23,6 +23,7 @@ type MinIOConfig struct {
 	SecretKey string `yaml:"secret_key"`
 	Bucket    string `yaml:"bucket"`
 	UseSSL    bool   `yaml:"use_ssl"`
+	Region    string `yaml:"region"`
 }
 
 type User struct {

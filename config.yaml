@@ -1,0 +1,28 @@
+server:
+  address: ":8080"
+
+minio:
+  endpoint: "localhost:9000"
+  access_key: "minioadmin"
+  secret_key: "minioadmin"
+  bucket: "test-bucket"
+  use_ssl: false
+  region: "us-east-1"
+
+users:
+  - access_key: "user1"
+    secret_key: "secret1"
+    rules:
+      - prefix: "public/"
+        verbs:
+          - Get
+          - List
+  - access_key: "user2"
+    secret_key: "secret2"
+    rules:
+      - prefix: ""
+        verbs:
+          - Get
+          - Put
+          - Delete
+          - List
