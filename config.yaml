@@ -5,24 +5,28 @@ minio:
   endpoint: "localhost:9000"
   access_key: "minioadmin"
   secret_key: "minioadmin"
-  bucket: "test-bucket"
+  bucket: "my-bucket"
   use_ssl: false
   region: "us-east-1"
 
 users:
-  - access_key: "user1"
-    secret_key: "secret1"
+  - access_key: "user1key"
+    secret_key: "user1secret"
     rules:
-      - prefix: "public/"
+      - prefix: "photos/"
         verbs:
           - get
           - list
-  - access_key: "user2"
-    secret_key: "secret2"
-    rules:
-      - prefix: ""
+      - prefix: "uploads/user1/"
         verbs:
           - get
           - put
           - delete
+          - list
+  - access_key: "user2key"
+    secret_key: "user2secret"
+    rules:
+      - prefix: ""
+        verbs:
+          - get
           - list
