@@ -132,7 +132,8 @@ Set `terminationGracePeriodSeconds` to at least `5 + your-max-request-duration`.
 
 ```
 ├── main.go
-├── config/config.go       # YAML config loader
+├── config/config.go       # YAML config loader + env var overrides (MINIO_ACCESS_KEY, MINIO_SECRET_KEY)
+├── config/config_test.go  # Config loading and env var override tests
 ├── auth/sigv4.go          # SigV4 parsing and HMAC validation
 ├── acl/acl.go             # Prefix + verb permission checks
 ├── proxy/proxy.go         # Re-signing and streaming forward
