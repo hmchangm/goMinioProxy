@@ -125,7 +125,8 @@ Set `terminationGracePeriodSeconds` to at least `5 + your-max-request-duration`.
 ├── auth/sigv4.go          # SigV4 parsing and HMAC validation
 ├── acl/acl.go             # Prefix + verb permission checks
 ├── proxy/proxy.go         # Re-signing and streaming forward
-├── server/server.go       # HTTP server
+├── server/server.go       # HTTP server + graceful shutdown
+├── server/server_test.go  # Graceful shutdown tests
 ├── integration/           # Integration tests (testcontainers-go)
 └── config.yaml            # Example config
 ```
