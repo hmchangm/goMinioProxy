@@ -56,6 +56,17 @@ users:
         verbs: [get, list]
 ```
 
+### Environment variable overrides
+
+`minio.access_key` and `minio.secret_key` can be overridden at runtime without modifying the config file:
+
+| Variable | Overrides |
+|---|---|
+| `MINIO_ACCESS_KEY` | `minio.access_key` |
+| `MINIO_SECRET_KEY` | `minio.secret_key` |
+
+When set, the environment variable takes precedence over the YAML value. Useful for injecting credentials via Kubernetes Secrets (see [Kubernetes](#kubernetes)).
+
 ### Verb mapping
 
 | Verb     | S3 Operations                |
