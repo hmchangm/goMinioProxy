@@ -53,6 +53,12 @@ func Load(path string) (*Config, error) {
 	if cfg.MinIO.Endpoint == "" {
 		return nil, fmt.Errorf("minio.endpoint is required")
 	}
+	if v := os.Getenv("MINIO_ACCESS_KEY"); v != "" {
+		cfg.MinIO.AccessKey = v
+	}
+	if v := os.Getenv("MINIO_SECRET_KEY"); v != "" {
+		cfg.MinIO.SecretKey = v
+	}
 	for i := range cfg.Users {
 		for j := range cfg.Users[i].Rules {
 			for k, v := range cfg.Users[i].Rules[j].Verbs {

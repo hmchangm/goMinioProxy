@@ -63,6 +63,54 @@ func TestLoadMissingFile(t *testing.T) {
 	}
 }
 
+func TestLoadOverridesMinIOAccessKeyFromEnv(t *testing.T) {
+	yaml := `
+minio:
+  endpoint: "localhost:9000"
+  access_key: "from-yaml"
+  secret_key: "secret"
+  bucket: "my-bucket"
+`
+	f, _ := os.CreateTemp("", "cfg*.yaml")
+	f.WriteString(yaml)
+	f.Close()
+	defer os.Remove(f.Name())
+
+	t.Setenv("MINIO_ACCESS_KEY", "from-env")
+
+	cfg, err := config.Load(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.MinIO.AccessKey != "from-env" {
+		t.Errorf("got access key %q, want from-env", cfg.MinIO.AccessKey)
+	}
+}
+
+func TestLoadOverridesMinIOSecretKeyFromEnv(t *testing.T) {
+	yaml := `
+minio:
+  endpoint: "localhost:9000"
+  access_key: "key"
+  secret_key: "from-yaml"
+  bucket: "my-bucket"
+`
+	f, _ := os.CreateTemp("", "cfg*.yaml")
+	f.WriteString(yaml)
+	f.Close()
+	defer os.Remove(f.Name())
+
+	t.Setenv("MINIO_SECRET_KEY", "from-env")
+
+	cfg, err := config.Load(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.MinIO.SecretKey != "from-env" {
+		t.Errorf("got secret key %q, want from-env", cfg.MinIO.SecretKey)
+	}
+}
+
 func TestLoadMissingBucket(t *testing.T) {
 	yaml := `
 server:
