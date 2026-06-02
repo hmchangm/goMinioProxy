@@ -128,6 +128,110 @@ lifecycle:
 
 Set `terminationGracePeriodSeconds` to at least `5 + your-max-request-duration`.
 
+### Deployment example
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gominioproxy
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gominioproxy
+  template:
+    metadata:
+      labels:
+        app: gominioproxy
+    spec:
+      terminationGracePeriodSeconds: 45   # preStop(5) + max request duration(~30) + buffer
+      containers:
+        - name: gominioproxy
+          image: your-registry/gominioproxy:latest
+          args: ["/etc/gominioproxy/config.yaml"]
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: config
+              mountPath: /etc/gominioproxy
+          env:
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gominioproxy-minio-creds
+                  key: access_key
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gominioproxy-minio-creds
+                  key: secret_key
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "5"]
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+      volumes:
+        - name: config
+          configMap:
+            name: gominioproxy-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gominioproxy
+spec:
+  selector:
+    app: gominioproxy
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gominioproxy-config
+data:
+  config.yaml: |
+    server:
+      address: ":8080"
+    minio:
+      endpoint: "minio.minio.svc.cluster.local:9000"
+      bucket: "my-bucket"
+      use_ssl: false
+      region: "us-east-1"
+    users:
+      - access_key: "user1key"
+        secret_key: "user1secret"
+        rules:
+          - prefix: "photos/"
+            verbs: [get, list]
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gominioproxy-minio-creds
+stringData:
+  access_key: "minioadmin"
+  secret_key: "minioadmin"
+```
+
 ## Project layout
 
 ```
