@@ -102,6 +102,21 @@ All errors are returned as S3-compatible XML:
 | ACL denied          | `AccessDenied`          | 403         |
 | Proxy/upstream error| `InternalError`         | 500         |
 
+## Kubernetes
+
+The proxy handles `SIGTERM` and `SIGINT` by stopping new connections and waiting up to 30 seconds for in-flight requests to drain before exiting.
+
+Because Kubernetes removes the pod from `Endpoints` asynchronously, traffic can still arrive for a few seconds after `SIGTERM` is sent. Add a `preStop` sleep to bridge that gap:
+
+```yaml
+lifecycle:
+  preStop:
+    exec:
+      command: ["sleep", "5"]
+```
+
+Set `terminationGracePeriodSeconds` to at least `5 + your-max-request-duration`.
+
 ## Project layout
 
 ```
