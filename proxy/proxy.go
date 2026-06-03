@@ -15,12 +15,31 @@ import (
 	"gominioproxy/acl"
 	"gominioproxy/auth"
 	"gominioproxy/config"
+	"gominioproxy/metrics"
 )
 
 var skipForwardHeaders = map[string]bool{
 	"Authorization":         true,
 	"X-Amz-Date":           true,
 	"X-Amz-Security-Token": true,
+}
+
+// statusWriter wraps http.ResponseWriter to capture the written status code.
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (sw *statusWriter) WriteHeader(code int) {
+	sw.status = code
+	sw.ResponseWriter.WriteHeader(code)
+}
+
+func (sw *statusWriter) Write(b []byte) (int, error) {
+	if sw.status == 0 {
+		sw.status = http.StatusOK
+	}
+	return sw.ResponseWriter.Write(b)
 }
 
 // Proxy implements http.Handler. It validates SigV4, enforces ACL, re-signs, and streams.
@@ -30,10 +49,19 @@ type Proxy struct {
 	minioBase  string
 	httpClient *http.Client
 	signer     *v4.Signer
+	rec        metrics.Recorder
+}
+
+// Option configures a Proxy.
+type Option func(*Proxy)
+
+// WithRecorder injects a metrics recorder. Defaults to NoopRecorder.
+func WithRecorder(r metrics.Recorder) Option {
+	return func(p *Proxy) { p.rec = r }
 }
 
 // New constructs a Proxy from cfg.
-func New(cfg *config.Config) *Proxy {
+func New(cfg *config.Config, opts ...Option) *Proxy {
 	userMap := make(map[string]config.User, len(cfg.Users))
 	for _, u := range cfg.Users {
 		userMap[u.AccessKey] = u
@@ -42,15 +70,20 @@ func New(cfg *config.Config) *Proxy {
 	if cfg.MinIO.UseSSL {
 		scheme = "https"
 	}
-	return &Proxy{
-		cfg:        cfg,
-		userMap:    userMap,
-		minioBase:  scheme + "://" + cfg.MinIO.Endpoint,
+	p := &Proxy{
+		cfg:       cfg,
+		userMap:   userMap,
+		minioBase: scheme + "://" + cfg.MinIO.Endpoint,
 		httpClient: &http.Client{
 			Timeout: 60 * time.Second,
 		},
-		signer:     v4.NewSigner(),
+		signer: v4.NewSigner(),
+		rec:    metrics.NoopRecorder{},
 	}
+	for _, o := range opts {
+		o(p)
+	}
+	return p
 }
 
 func parseOperation(r *http.Request, bucket string) (acl.Verb, string, error) {
@@ -90,35 +123,56 @@ func parseOperation(r *http.Request, bucket string) (acl.Verb, string, error) {
 }
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	sw := &statusWriter{ResponseWriter: w}
+	start := time.Now()
+	accessKey := "__unknown__"
+	verb := ""
+
+	p.rec.IncInflight()
+	defer func() {
+		p.rec.DecInflight()
+		status := sw.status
+		if status == 0 {
+			status = http.StatusOK
+		}
+		p.rec.RecordRequest(accessKey, verb, status, time.Since(start))
+	}()
+
 	parsed, err := auth.ParseAuthHeader(r)
 	if err != nil {
-		writeS3Error(w, "InvalidAccessKeyId", "Missing or malformed Authorization", http.StatusForbidden)
+		writeS3Error(sw, "InvalidAccessKeyId", "Missing or malformed Authorization", http.StatusForbidden)
+		p.rec.RecordAuthFailure("unknown_key")
 		return
 	}
 
 	user, ok := p.userMap[parsed.AccessKey]
 	if !ok {
-		writeS3Error(w, "InvalidAccessKeyId", "The access key does not exist", http.StatusForbidden)
+		writeS3Error(sw, "InvalidAccessKeyId", "The access key does not exist", http.StatusForbidden)
+		p.rec.RecordAuthFailure("unknown_key")
 		return
 	}
+	accessKey = parsed.AccessKey
 
 	if err := auth.ValidateSignature(r, parsed, user.SecretKey); err != nil {
-		writeS3Error(w, "SignatureDoesNotMatch", "The request signature does not match", http.StatusForbidden)
+		writeS3Error(sw, "SignatureDoesNotMatch", "The request signature does not match", http.StatusForbidden)
+		p.rec.RecordAuthFailure("bad_signature")
 		return
 	}
 
-	verb, aclPath, err := parseOperation(r, p.cfg.MinIO.Bucket)
+	parsedVerb, aclPath, err := parseOperation(r, p.cfg.MinIO.Bucket)
 	if err != nil {
-		writeS3Error(w, "InvalidRequest", err.Error(), http.StatusBadRequest)
+		writeS3Error(sw, "InvalidRequest", err.Error(), http.StatusBadRequest)
+		return
+	}
+	verb = string(parsedVerb)
+
+	if !acl.Check(user, aclPath, parsedVerb) {
+		writeS3Error(sw, "AccessDenied", "Access Denied", http.StatusForbidden)
+		p.rec.RecordACLDenial(accessKey, verb)
 		return
 	}
 
-	if !acl.Check(user, aclPath, verb) {
-		writeS3Error(w, "AccessDenied", "Access Denied", http.StatusForbidden)
-		return
-	}
-
-	p.forward(w, r)
+	p.forward(sw, r)
 }
 
 func (p *Proxy) forward(w http.ResponseWriter, r *http.Request) {
@@ -154,11 +208,13 @@ func (p *Proxy) forward(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	upstreamStart := time.Now()
 	resp, err := p.httpClient.Do(outReq)
 	if err != nil {
 		writeS3Error(w, "InternalError", "upstream unreachable", http.StatusInternalServerError)
 		return
 	}
+	p.rec.RecordUpstreamDuration(resp.StatusCode, time.Since(upstreamStart))
 	defer resp.Body.Close()
 
 	for k, vs := range resp.Header {
