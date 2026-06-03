@@ -86,6 +86,23 @@ go build -o bin/gominioproxy .
 ./bin/gominioproxy /path/to/config.yaml
 ```
 
+## Metrics
+
+The proxy exposes Prometheus metrics at `GET /metrics` on the same port as the proxy (no extra configuration).
+
+| Metric | Type | Labels |
+|---|---|---|
+| `proxy_requests_total` | Counter | `access_key`, `verb`, `status_code` |
+| `proxy_request_duration_seconds` | Histogram | `access_key`, `verb` |
+| `proxy_requests_inflight` | Gauge | — |
+| `proxy_auth_failures_total` | Counter | `reason` |
+| `proxy_acl_denials_total` | Counter | `access_key`, `verb` |
+| `proxy_upstream_duration_seconds` | Histogram | `status_code` |
+
+`access_key` is set to `__unknown__` for requests that fail with an unrecognised key, preventing arbitrary client-supplied values from polluting label cardinality.
+
+To scrape with Prometheus add the proxy service as a target. The Kubernetes deployment example already exposes port 80; add an annotation or `ServiceMonitor` pointing to `path: /metrics`.
+
 ## Testing
 
 Unit tests (no external dependencies):
@@ -236,6 +253,8 @@ stringData:
 
 ```
 ├── main.go
+├── metrics/metrics.go     # Recorder interface, PrometheusRecorder, NoopRecorder
+├── metrics/metrics_test.go # Unit tests for PrometheusRecorder
 ├── config/config.go       # YAML config loader + env var overrides (MINIO_ACCESS_KEY, MINIO_SECRET_KEY)
 ├── config/config_test.go  # Config loading and env var override tests
 ├── auth/sigv4.go          # SigV4 parsing and HMAC validation
