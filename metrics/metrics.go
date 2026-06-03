@@ -94,3 +94,5 @@ func (NoopRecorder) RecordRequest(_, _ string, _ int, _ time.Duration) {}
 func (NoopRecorder) RecordAuthFailure(_ string)                         {}
 func (NoopRecorder) RecordACLDenial(_, _ string)                       {}
 func (NoopRecorder) RecordUpstreamDuration(_ int, _ time.Duration)     {}
+
+var _ Recorder = NoopRecorder{}

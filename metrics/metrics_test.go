@@ -63,14 +63,22 @@ func TestInflightGaugeZeroAfterIncrDecr(t *testing.T) {
 	rec := metrics.NewPrometheusRecorder(reg)
 
 	rec.IncInflight()
+
+	atOne := `
+		# HELP proxy_requests_inflight Requests currently being processed.
+		# TYPE proxy_requests_inflight gauge
+		proxy_requests_inflight 1
+	`
+	assert.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(atOne), "proxy_requests_inflight"))
+
 	rec.DecInflight()
 
-	expected := `
+	atZero := `
 		# HELP proxy_requests_inflight Requests currently being processed.
 		# TYPE proxy_requests_inflight gauge
 		proxy_requests_inflight 0
 	`
-	assert.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "proxy_requests_inflight"))
+	assert.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(atZero), "proxy_requests_inflight"))
 }
 
 func TestRecordRequestDurationObserved(t *testing.T) {
